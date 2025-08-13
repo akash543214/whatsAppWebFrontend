@@ -1,13 +1,13 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Search, MoreVertical, Smile, Paperclip, Mic, Send, ChevronLeft, Phone, Video, Check, CheckCheck } from "lucide-react";
-
+import EmojiPicker from "emoji-picker-react";
 
 interface Message {
   id: string;
   text: string;
   fromMe: boolean;
-  time: string; // "HH:MM"
-  status?: "sent" | "delivered" | "read"; // for fromMe bubbles
+  time: string;
+  status?: "sent" | "delivered" | "read";
 }
 
 interface ChatSummary {
@@ -24,7 +24,6 @@ interface Chat extends ChatSummary {
   messages: Message[];
 }
 
-// --- Demo Data ---
 const demoChats: Chat[] = [
   {
     id: "1",
@@ -67,35 +66,27 @@ const demoChats: Chat[] = [
   },
 ];
 
-// --- Helpers ---
-const StatusTicks: React.FC<{ status?: Message["status"] }>= ({ status }) => {
+const StatusTicks: React.FC<{ status?: Message["status"] }> = ({ status }) => {
   if (!status) return null;
   if (status === "sent") return <Check className="h-4 w-4 opacity-60" />;
   if (status === "delivered") return <CheckCheck className="h-4 w-4 opacity-60" />;
-  return <CheckCheck className="h-4 w-4" />; // read
+  return <CheckCheck className="h-4 w-4" />;
 };
 
-const Avatar: React.FC<{ src?: string; name: string; online?: boolean }>= ({ src, name, online }) => {
-  return (
-    <div className="relative h-12 w-12 flex-shrink-0">
-      <img
-        src={src || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`}
-        alt={name}
-        className="h-12 w-12 rounded-full object-cover"
-      />
-      {online && (
-        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
-      )}
-    </div>
-  );
-};
-
-const Divider: React.FC = () => (
-  <div className="mx-4 my-1 h-px bg-black/5 dark:bg-white/10" />
+const Avatar: React.FC<{ src?: string; name: string; online?: boolean }> = ({ src, name, online }) => (
+  <div className="relative h-12 w-12 flex-shrink-0">
+    <img
+      src={src || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`}
+      alt={name}
+      className="h-12 w-12 rounded-full object-cover"
+    />
+    {online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />}
+  </div>
 );
 
-// Subtle wallpaper-like bg for chat area
-const ChatWallpaper: React.FC = () => (
+const Divider = () => <div className="mx-4 my-1 h-px bg-black/5 dark:bg-white/10" />;
+
+const ChatWallpaper = () => (
   <div
     className="pointer-events-none absolute inset-0 opacity-[0.035]"
     style={{
@@ -108,13 +99,14 @@ const ChatWallpaper: React.FC = () => (
   />
 );
 
-// --- Main Component ---
 const WhatsAppWebUI: React.FC = () => {
   const [chats, setChats] = useState<Chat[]>(demoChats);
   const [activeId, setActiveId] = useState<string>(demoChats[0].id);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
-  const [showListOnMobile, setShowListOnMobile] = useState(true); // list first on mobile
+  const [showListOnMobile, setShowListOnMobile] = useState(true);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
   const activeChat = useMemo(() => chats.find((c) => c.id === activeId)!, [chats, activeId]);
 
   const filtered = useMemo(() => {
@@ -130,7 +122,7 @@ const WhatsAppWebUI: React.FC = () => {
 
   const selectChat = (id: string) => {
     setActiveId(id);
-    setShowListOnMobile(false); // open chat on mobile
+    setShowListOnMobile(false);
   };
 
   const sendMessage = () => {
@@ -171,24 +163,25 @@ const WhatsAppWebUI: React.FC = () => {
     }
   };
 
+  const onEmojiClick = (emojiData: any) => {
+    setDraft((prev) => prev + emojiData.emoji);
+      setShowEmojiPicker(false); 
+  };
+
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#f0f2f5] text-gray-900 antialiased dark:bg-[#0b141a] dark:text-gray-100">
-      {/* Desktop container with centered app width like WhatsApp Web */}
       <div className="mx-auto flex h-full max-w-[1400px] gap-0 p-0 sm:p-4">
-        {/* Sidebar (chat list) */}
+        {/* Sidebar */}
         <aside
           className={[
             "flex h-full w-full max-w-full flex-col border-r border-black/10 bg-white dark:border-white/10 dark:bg-[#111b21] sm:max-w-[380px]",
             showListOnMobile ? "" : "hidden sm:flex",
           ].join(" ")}
         >
-          {/* Sidebar header */}
           <div className="flex items-center justify-between gap-2 px-4 py-3">
             <div className="flex items-center gap-3">
-              <Avatar name="You" src="https://i.pravatar.cc/100?img=2" online />
               <div>
-                <div className="text-sm font-semibold">WhatsApp</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Web (Demo UI)</div>
+                <div className="text-xl font-semibold">WhatsApp</div>
               </div>
             </div>
             <button className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10" aria-label="More">
@@ -196,8 +189,6 @@ const WhatsAppWebUI: React.FC = () => {
             </button>
           </div>
           <Divider />
-
-          {/* Search */}
           <div className="mx-3 my-2 flex items-center gap-2 rounded-xl bg-black/5 px-3 py-2 dark:bg-white/10">
             <Search className="h-4 w-4 flex-shrink-0" />
             <input
@@ -207,8 +198,6 @@ const WhatsAppWebUI: React.FC = () => {
               className="w-full bg-transparent text-sm outline-none placeholder:text-gray-500"
             />
           </div>
-
-          {/* Chats */}
           <div className="scrollbar-thin flex-1 overflow-y-auto">
             {filtered.map((c) => (
               <button
@@ -238,14 +227,13 @@ const WhatsAppWebUI: React.FC = () => {
           </div>
         </aside>
 
-        {/* Conversation area */}
+        {/* Chat area */}
         <main
           className={[
             "relative flex h-full w-full flex-1 flex-col bg-[#efeae2] dark:bg-[#0b141a]",
             showListOnMobile ? "hidden sm:flex" : "flex",
           ].join(" ")}
         >
-          {/* Chat header */}
           <div className="z-10 flex items-center justify-between gap-2 border-b border-black/10 bg-[#f0f2f5] px-3 py-2 dark:border-white/10 dark:bg-[#202c33]">
             <div className="flex items-center gap-3">
               <button className="sm:hidden" onClick={() => setShowListOnMobile(true)} aria-label="Back to chats">
@@ -259,7 +247,6 @@ const WhatsAppWebUI: React.FC = () => {
                 </div>
               </div>
             </div>
-
             <div className="flex items-center gap-1">
               <button className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10" aria-label="Video">
                 <Video className="h-5 w-5" />
@@ -303,10 +290,21 @@ const WhatsAppWebUI: React.FC = () => {
           </div>
 
           {/* Composer */}
-          <div className="z-10 flex items-end gap-2 border-t border-black/10 bg-[#f0f2f5] px-3 py-2 dark:border-white/10 dark:bg-[#202c33] sm:px-4">
-            <button className="hidden rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10 sm:inline-flex" aria-label="Emoji">
-              <Smile className="h-6 w-6" />
-            </button>
+          <div className="relative z-10 flex items-end gap-2 border-t border-black/10 bg-[#f0f2f5] px-3 py-2 dark:border-white/10 dark:bg-[#202c33] sm:px-4">
+            <div className="relative">
+              <button
+                onClick={() => setShowEmojiPicker((prev) => !prev)}
+                className="hidden rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10 sm:inline-flex"
+                aria-label="Emoji"
+              >
+                <Smile className="h-6 w-6" />
+              </button>
+              {showEmojiPicker && (
+                <div className="absolute bottom-12 left-0 z-50">
+                  <EmojiPicker onEmojiClick={onEmojiClick} />
+                </div>
+              )}
+            </div>
             <button className="hidden rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10 sm:inline-flex" aria-label="Attach">
               <Paperclip className="h-6 w-6" />
             </button>
@@ -336,7 +334,6 @@ const WhatsAppWebUI: React.FC = () => {
         </main>
       </div>
 
-      {/* Small helper for dark mode demo */}
       <DarkModeToggle />
     </div>
   );
@@ -349,7 +346,6 @@ const DarkModeToggle: React.FC = () => {
     if (dark) root.classList.add("dark");
     else root.classList.remove("dark");
   }, [dark]);
-
   return (
     <button
       onClick={() => setDark((d) => !d)}
