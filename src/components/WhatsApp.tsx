@@ -1,19 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Search, MoreVertical, Smile, Paperclip, Mic, Send, ChevronLeft, Phone, Video, Check, CheckCheck } from "lucide-react";
 
-/**
- * WhatsApp Web UI (Close Approximation)
- * - Pure React + TailwindCSS
- * - Responsive: mobile shows either chat list or conversation
- * - Message bubbles, ticks, timestamps, input bar
- * - Search & simple filtering in chat list
- * - Clean, production-ready structure you can wire to your backend
- *
- * Drop this file into your React app and ensure Tailwind is configured.
- * Default export <WhatsAppWebUI /> renders the whole layout.
- */
 
-// --- Types ---
 interface Message {
   id: string;
   text: string;
