@@ -1,7 +1,21 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { Search, MoreVertical, Smile, Paperclip, Mic, Send, ChevronLeft, Phone, Video, Check, CheckCheck } from "lucide-react";
+import {
+  Search,
+  MoreVertical,
+  Smile,
+  Paperclip,
+  Mic,
+  Send,
+  ChevronLeft,
+  Phone,
+  Video,
+  Check,
+  CheckCheck,
+} from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
-
+import { getUsers } from "@/BackendApi/ApiService";
+import { getMessages } from "@/BackendApi/ApiService";
+import { handleSendMessage } from "@/BackendApi/ApiService";
 interface Message {
   id: string;
   text: string;
@@ -11,7 +25,7 @@ interface Message {
 }
 
 interface ChatSummary {
-  id: string;
+  id: string; // here we'll store wa_id
   name: string;
   avatar?: string;
   lastMessage: string;
@@ -24,67 +38,39 @@ interface Chat extends ChatSummary {
   messages: Message[];
 }
 
-const demoChats: Chat[] = [
-  {
-    id: "1",
-    name: "Akansha",
-    avatar: "https://i.pravatar.cc/100?img=47",
-    lastMessage: "See you at 7?",
-    lastTime: "12:45",
-    unread: 2,
-    online: true,
-    messages: [
-      { id: "m1", text: "hey!", fromMe: false, time: "12:40" },
-      { id: "m2", text: "movie tonight?", fromMe: false, time: "12:41" },
-      { id: "m3", text: "Yep, 7 works.", fromMe: true, time: "12:44", status: "read" },
-      { id: "m4", text: "See you at 7?", fromMe: false, time: "12:45" },
-    ],
-  },
-  {
-    id: "2",
-    name: "Team Standup",
-    avatar: "https://i.pravatar.cc/100?img=12",
-    lastMessage: "Pushed hotfix",
-    lastTime: "11:30",
-    messages: [
-      { id: "t1", text: "Daily in 5 mins", fromMe: false, time: "10:54" },
-      { id: "t2", text: "Joining now", fromMe: true, time: "10:55", status: "delivered" },
-      { id: "t3", text: "Pushed hotfix", fromMe: false, time: "11:30" },
-    ],
-  },
-  {
-    id: "3",
-    name: "Mom",
-    avatar: "https://i.pravatar.cc/100?img=5",
-    lastMessage: "Call me beta",
-    lastTime: "09:20",
-    unread: 1,
-    messages: [
-      { id: "mm1", text: "Ate lunch?", fromMe: false, time: "09:18" },
-      { id: "mm2", text: "Call me beta", fromMe: false, time: "09:20" },
-    ],
-  },
-];
-
 const StatusTicks: React.FC<{ status?: Message["status"] }> = ({ status }) => {
   if (!status) return null;
   if (status === "sent") return <Check className="h-4 w-4 opacity-60" />;
-  if (status === "delivered") return <CheckCheck className="h-4 w-4 opacity-60" />;
+  if (status === "delivered")
+    return <CheckCheck className="h-4 w-4 opacity-60" />;
   return <CheckCheck className="h-4 w-4" />;
 };
 
-const Avatar: React.FC<{ src?: string; name: string; online?: boolean }> = ({ src, name, online }) => (
+const Avatar: React.FC<{ src?: string; name: string; online?: boolean }> = ({
+  src,
+  name,
+  online,
+}) => (
   <div className="relative h-12 w-12 flex-shrink-0">
     <img
-      src={src || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`}
+      src={
+        src ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          name
+        )}&background=random`
+      }
       alt={name}
       className="h-12 w-12 rounded-full object-cover"
     />
-    {online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />}
+    {online && (
+      <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+    )}
   </div>
 );
 
-const Divider = () => <div className="mx-4 my-1 h-px bg-black/5 dark:bg-white/10" />;
+const Divider = () => (
+  <div className="mx-4 my-1 h-px bg-black/5 dark:bg-white/10" />
+);
 
 const ChatWallpaper = () => (
   <div
@@ -100,37 +86,123 @@ const ChatWallpaper = () => (
 );
 
 const WhatsAppWebUI: React.FC = () => {
-  const [chats, setChats] = useState<Chat[]>(demoChats);
-  const [activeId, setActiveId] = useState<string>(demoChats[0].id);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [showListOnMobile, setShowListOnMobile] = useState(true);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  const activeChat = useMemo(() => chats.find((c) => c.id === activeId)!, [chats, activeId]);
+  // Fetch user list on mount
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const users:any = await getUsers() // endpoint returns deduplicated list
+     console.log(users);
+
+        const chatsFormatted: Chat[] = users.map((u:any) => ({
+          id: u.wa_id,
+          name: u.name,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            u.name
+          )}&background=random`,
+          lastMessage: u.text || "",
+          lastTime: new Date(u.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          messages: [], // will be filled when user is clicked
+        }));
+
+        setChats(chatsFormatted);
+        if (chatsFormatted.length > 0) {
+          setActiveId(chatsFormatted[0].id);
+          fetchMessages(chatsFormatted[0].id);
+        }
+      } catch (err) {
+        console.error("Error fetching users:", err);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  // Fetch messages by wa_id
+  const fetchMessages = async (wa_id: string) => {
+    try {
+      const msgs = await getMessages(wa_id);
+        console.log(msgs);
+
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === wa_id
+            ? {
+                ...chat,
+                messages: msgs.map((m:any) => ({
+                  id: m._id,
+                  text: m.text,
+                  fromMe: m.direction === "outgoing",
+                  time: new Date(m.timestamp).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                  status: m.status,
+                })),
+              }
+            : chat
+        )
+      );
+    } catch (err) {
+      console.error("Error fetching messages:", err);
+    }
+  };
+
+  const activeChat = useMemo(
+    () => chats.find((c) => c.id === activeId)!,
+    [chats, activeId]
+  );
 
   const filtered = useMemo(() => {
     if (!query.trim()) return chats;
     const q = query.toLowerCase();
-    return chats.filter((c) => c.name.toLowerCase().includes(q) || c.lastMessage.toLowerCase().includes(q));
+    return chats.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.lastMessage.toLowerCase().includes(q)
+    );
   }, [query, chats]);
 
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeId, activeChat.messages.length]);
+  }, [activeId, activeChat?.messages.length]);
 
   const selectChat = (id: string) => {
     setActiveId(id);
     setShowListOnMobile(false);
+    fetchMessages(id);
   };
 
-  const sendMessage = () => {
+  const sendMessage = async() => {
+
     const text = draft.trim();
-    if (!text) return;
+    if (!text || !activeId) return;
     const now = new Date();
     const time = now.toTimeString().slice(0, 5);
 
+
+  
+
+const message = {
+  name:activeChat.name,
+  wa_id:activeId,
+  text:text,
+  status:"delivered",
+  timestamp:Date.now(),
+  direction:"outgoing"
+}
+
+await handleSendMessage(message);
     setChats((prev) =>
       prev.map((chat) =>
         chat.id === activeId
@@ -165,8 +237,10 @@ const WhatsAppWebUI: React.FC = () => {
 
   const onEmojiClick = (emojiData: any) => {
     setDraft((prev) => prev + emojiData.emoji);
-      setShowEmojiPicker(false); 
+    setShowEmojiPicker(false);
   };
+
+  if (!activeChat) return null; // no chats yet
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#f0f2f5] text-gray-900 antialiased dark:bg-[#0b141a] dark:text-gray-100">
@@ -180,11 +254,9 @@ const WhatsAppWebUI: React.FC = () => {
         >
           <div className="flex items-center justify-between gap-2 px-4 py-3">
             <div className="flex items-center gap-3">
-              <div>
-                <div className="text-xl font-semibold">WhatsApp</div>
-              </div>
+              <div className="text-xl font-semibold">WhatsApp</div>
             </div>
-            <button className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10" aria-label="More">
+            <button className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10">
               <MoreVertical className="h-5 w-5" />
             </button>
           </div>
@@ -210,16 +282,17 @@ const WhatsAppWebUI: React.FC = () => {
                 <Avatar name={c.name} src={c.avatar} online={c.online} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="truncate text-[15px] font-medium">{c.name}</div>
-                    <div className="ml-2 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{c.lastTime}</div>
+                    <div className="truncate text-[15px] font-medium">
+                      {c.name}
+                    </div>
+                    <div className="ml-2 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+                      {c.lastTime}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <div className="truncate text-sm text-gray-600 dark:text-gray-300">{c.lastMessage}</div>
-                    {typeof c.unread === "number" && c.unread > 0 && (
-                      <span className="ml-2 inline-flex min-w-[20px] items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-xs font-semibold text-white">
-                        {c.unread}
-                      </span>
-                    )}
+                    <div className="truncate text-sm text-gray-600 dark:text-gray-300">
+                      {c.lastMessage}
+                    </div>
                   </div>
                 </div>
               </button>
@@ -236,27 +309,32 @@ const WhatsAppWebUI: React.FC = () => {
         >
           <div className="z-10 flex items-center justify-between gap-2 border-b border-black/10 bg-[#f0f2f5] px-3 py-2 dark:border-white/10 dark:bg-[#202c33]">
             <div className="flex items-center gap-3">
-              <button className="sm:hidden" onClick={() => setShowListOnMobile(true)} aria-label="Back to chats">
+              <button
+                className="sm:hidden"
+                onClick={() => setShowListOnMobile(true)}
+              >
                 <ChevronLeft className="h-6 w-6" />
               </button>
-              <Avatar name={activeChat.name} src={activeChat.avatar} online={activeChat.online} />
+              <Avatar
+                name={activeChat.name}
+                src={activeChat.avatar}
+                online={activeChat.online}
+              />
               <div>
-                <div className="-mb-0.5 text-[15px] font-medium">{activeChat.name}</div>
+                <div className="-mb-0.5 text-[15px] font-medium">
+                  {activeChat.name}
+                </div>
                 <div className="text-xs text-gray-600 dark:text-gray-300">
-                  {activeChat.online ? "online" : "last seen today at " + activeChat.lastTime}
+                  {activeChat.online
+                    ? "online"
+                    : "last seen today at " + activeChat.lastTime}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              <button className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10" aria-label="Video">
-                <Video className="h-5 w-5" />
-              </button>
-              <button className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10" aria-label="Voice">
-                <Phone className="h-5 w-5" />
-              </button>
-              <button className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10" aria-label="More">
-                <MoreVertical className="h-5 w-5" />
-              </button>
+            <div className="flex items-center gap-3">
+              <Video className="h-5 w-5" />
+              <Phone className="h-5 w-5" />
+              <MoreVertical className="h-5 w-5" />
             </div>
           </div>
 
@@ -265,7 +343,10 @@ const WhatsAppWebUI: React.FC = () => {
             <ChatWallpaper />
             <div className="mx-auto flex max-w-3xl flex-col gap-1">
               {activeChat.messages.map((m) => (
-                <div key={m.id} className={`flex ${m.fromMe ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={m.id}
+                  className={`flex ${m.fromMe ? "justify-end" : "justify-start"}`}
+                >
                   <div
                     className={`relative max-w-[82%] rounded-lg px-3 py-2 text-[15px] leading-snug shadow-sm sm:max-w-[70%] ${
                       m.fromMe
@@ -273,7 +354,9 @@ const WhatsAppWebUI: React.FC = () => {
                         : "bg-white text-gray-900 dark:bg-[#202c33] dark:text-gray-100"
                     }`}
                   >
-                    <span className="whitespace-pre-wrap break-words">{m.text}</span>
+                    <span className="whitespace-pre-wrap break-words">
+                      {m.text}
+                    </span>
                     <div className="mt-1 flex items-center justify-end gap-1">
                       <span className="text-[10px] opacity-60">{m.time}</span>
                       {m.fromMe && (
@@ -295,7 +378,6 @@ const WhatsAppWebUI: React.FC = () => {
               <button
                 onClick={() => setShowEmojiPicker((prev) => !prev)}
                 className="hidden rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10 sm:inline-flex"
-                aria-label="Emoji"
               >
                 <Smile className="h-6 w-6" />
               </button>
@@ -305,7 +387,7 @@ const WhatsAppWebUI: React.FC = () => {
                 </div>
               )}
             </div>
-            <button className="hidden rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10 sm:inline-flex" aria-label="Attach">
+            <button className="hidden rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10 sm:inline-flex">
               <Paperclip className="h-6 w-6" />
             </button>
 
@@ -321,12 +403,11 @@ const WhatsAppWebUI: React.FC = () => {
               <button
                 onClick={sendMessage}
                 className="inline-flex items-center justify-center rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10"
-                aria-label="Send"
               >
                 <Send className="h-6 w-6" />
               </button>
             ) : (
-              <button className="inline-flex items-center justify-center rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10" aria-label="Mic">
+              <button className="inline-flex items-center justify-center rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10">
                 <Mic className="h-6 w-6" />
               </button>
             )}
